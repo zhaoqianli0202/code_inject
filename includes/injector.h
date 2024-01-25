@@ -1,15 +1,5 @@
 #pragma once
-#include <string>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/ptrace.h>
-#include <asm/ptrace.h>
-#include <sys/wait.h>
-#include <sys/time.h>
-#include <cstring>
-#include <elf.h>
-#include <dlfcn.h>
-#include <sys/mman.h>
+#include "common.h"
 #include "inject_info.h"
 #include "arm64_inlinehook.h"
 
@@ -28,6 +18,7 @@ private:
     pid_t target_tid;
     struct pt_regs ori_regs;
     uintptr_t dlopen_addr, dlsym_addr, dlclose_addr;
+    inject_info *callback;
     int ptrace_attach();
     int ptrace_getregs(struct pt_regs * regs);
     int wait_for_sigstop();
@@ -43,9 +34,12 @@ private:
     void* trampoline;
 
 public:
+    inject_info *hooker;
+    inject_info *helper;
     injector(pid_t tid);
     int attach_thread();
     int detach_thread();
     int load_inject_function(inject_info &target);
-    int exec_target_inlinehook(inject_info &where, inject_info &code, inject_info &hooker, inject_info &callback);
+    int exec_target_inlinehook(inject_info &where, inject_info &code, inject_info &callback, bool helper_mode);
+    int injector_register(inject_info &where, inject_info &code, bool callback_orgi, bool hook_return, bool helper_mode);
 };

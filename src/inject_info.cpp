@@ -13,26 +13,26 @@ bool inject_info::parse_symbol_addr() {
 bool inject_info::find_symbol_addr() {
     int fd = open(elf_path.c_str(), O_RDONLY, 0);
     if (fd < 0) {
-        printf("open failed\n");
+        CODE_INJECT_ERR("open failed\n");
         return false;
     }
 
     if (elf_version(EV_CURRENT) == EV_NONE) {
-        printf("elf_version failed\n");
+        CODE_INJECT_ERR("elf_version failed\n");
         close(fd);
         return false;
     }
 
     Elf* elf = elf_begin(fd, ELF_C_READ, nullptr);
     if (elf == nullptr) {
-        printf("elf_begin failed\n");
+        CODE_INJECT_ERR("elf_begin failed\n");
         close(fd);
         return false;
     }
 
     Elf_Kind ek = elf_kind(elf);
     if (ek != ELF_K_ELF) {
-        printf("Not an ELF object.\n");
+        CODE_INJECT_ERR("Not an ELF object.\n");
         elf_end(elf);
         close(fd);
         return false;
@@ -50,7 +50,7 @@ bool inject_info::find_symbol_addr() {
     }
 
     if (symbolSection == nullptr) {
-        printf("No symbol table found.\n");
+        CODE_INJECT_ERR("No symbol table found.\n");
         elf_end(elf);
         close(fd);
         return false;
@@ -58,7 +58,7 @@ bool inject_info::find_symbol_addr() {
 
     Elf_Data* symbolData = elf_getdata(symbolSection, nullptr);
     if (symbolData == nullptr) {
-        printf("elf_getdata failed\n");
+        CODE_INJECT_ERR("elf_getdata failed\n");
         elf_end(elf);
         close(fd);
         return false;
@@ -87,23 +87,23 @@ bool inject_info::find_symbol_addr() {
 int inject_info::parse_inject_info(const std::string &info) {
     std::istringstream iss(info);
     if (!std::getline(iss, elf_path, ':')) {
-        printf("Fail to parse_inject_info elf path %s\n", elf_path.c_str());
+        CODE_INJECT_ERR("Fail to parse_inject_info elf path %s\n", elf_path.c_str());
         return -1;
     }
     if (access(elf_path.c_str(), R_OK)) {
-        printf("Not exist elf %s\n", elf_path.c_str());
+        CODE_INJECT_ERR("Not exist elf %s\n", elf_path.c_str());
         return -2;
     }
     if (!std::getline(iss, sym_name)) {
-        printf("Fail to parse_inject_info symbol %s\n", sym_name.c_str());
+        CODE_INJECT_ERR("Fail to parse_inject_info symbol %s\n", sym_name.c_str());
         return -3;
     }
     if (iss >> std::ws &&!iss.eof()) {
-        printf("Fail to parse_inject_info symbol %s\n", sym_name.c_str());
+        CODE_INJECT_ERR("Fail to parse_inject_info symbol %s\n", sym_name.c_str());
         return -4;
     }
     if (!parse_symbol_addr()) {
-        printf("parse symbol %s in file %s failed\n", sym_name.c_str(), elf_path.c_str());
+        CODE_INJECT_ERR("parse symbol %s in file %s failed\n", sym_name.c_str(), elf_path.c_str());
         return -5;
     }
 
@@ -113,7 +113,7 @@ int inject_info::parse_inject_info(const std::string &info) {
 uintptr_t inject_info::get_reloc_addr(pid_t pid) {
     uintptr_t base = get_module_base(pid, elf_path);
     if (!base) {
-        printf("Get module %s base failed\n", elf_path.c_str());
+        CODE_INJECT_ERR("Get module %s base failed\n", elf_path.c_str());
         return 0;
     }
     sym_addr += base;
@@ -132,7 +132,7 @@ uintptr_t inject_info::get_module_base(pid_t pid, const std::string &module_name
     }
     std::ifstream ifs(map_file);
     if (!ifs.is_open()) {
-        printf("Open %s failed\n", map_file.c_str());
+        CODE_INJECT_ERR("Open %s failed\n", map_file.c_str());
         return 0;
     }
     while (std::getline(ifs, line)) {
@@ -145,6 +145,6 @@ uintptr_t inject_info::get_module_base(pid_t pid, const std::string &module_name
             }
         }
     }
-    printf("Not found %s in %s\n", module_name.c_str(), map_file.c_str());
+    CODE_INJECT_ERR("Not found %s in %s\n", module_name.c_str(), map_file.c_str());
     return 0;
 }

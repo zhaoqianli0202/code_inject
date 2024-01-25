@@ -32,22 +32,22 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/mman.h>
-#include <log.h>
+// #include <log.h>
 #include <unistd.h>
 
 #if defined(__aarch64__)
 
 #include "arm64_inlinehook.h"
-#define   A64_MAX_INSTRUCTIONS 5
+#define   A64_MAX_INSTRUCTIONS 6
 #define   A64_MAX_REFERENCES   (A64_MAX_INSTRUCTIONS * 2)
 #define   A64_NOP              0xd503201fu
 #define   A64_JNIEXPORT        __attribute__((visibility("default")))
-#define   A64_LOGE(fmt, ...)	ALOGE(fmt, ##__VA_ARGS__)
-#ifndef NDEBUG
-#define   A64_LOGI(fmt, ...)	ALOGI(fmt, ##__VA_ARGS__)
-#else
-# define  A64_LOGI(...)        ((void)0)
-#endif // NDEBUG
+// #define   A64_LOGE(fmt, ...)	ALOGE(fmt, ##__VA_ARGS__)
+// #ifndef NDEBUG
+// #define   A64_LOGI(fmt, ...)	ALOGI(fmt, ##__VA_ARGS__)
+// #else
+// # define  A64_LOGI(...)        ((void)0)
+// #endif // NDEBUG
 typedef uint32_t *__restrict *__restrict instruction;
 struct context
 {
@@ -392,18 +392,18 @@ static bool __fix_pcreladdr(instruction inpp, instruction outpp, context *ctxp)
             current_idx           = ctxp->get_and_set_current_index(*inpp, *outpp);
             int32_t lsb_bytes     = static_cast<uint32_t>(ins << 1u) >> 30u;
             int64_t absolute_addr = (reinterpret_cast<int64_t>(*inpp) & ~0xfffll) + ((((static_cast<int32_t>(ins << msb) >> (msb + lsb - 2u)) & ~3u) | lsb_bytes) << 12);
-            A64_LOGI("ins = 0x%.8X, pc = %p, abs_addr = %p",
+            CODE_INJECT_INFO("ins = 0x%.8X, pc = %p, abs_addr = %p\n",
                      ins, *inpp, reinterpret_cast<int64_t *>(absolute_addr));
             if (ctxp->is_in_fixing_range(absolute_addr)) {
                 intptr_t ref_idx = ctxp->get_ref_ins_index(absolute_addr/* & ~3ull*/);
                 if (ref_idx > current_idx) {
                     // the bottom 12 bits of absolute_addr are masked out,
                     // so ref_idx must be less than or equal to current_idx!
-                    A64_LOGE("ref_idx must be less than or equal to current_idx!");
+                    CODE_INJECT_ERR("ref_idx must be less than or equal to current_idx!\n");
                 } //if
 
                 // *absolute_addr may be changed due to relocation fixing
-                A64_LOGI("What is the correct way to fix this?");
+                CODE_INJECT_INFO("What is the correct way to fix this?\n");
                 *(*outpp)++ = ins; // 0x90000000u;
             } else {
                 if ((reinterpret_cast<uint64_t>(*outpp + 2) & 7u) != 0u) {
@@ -439,7 +439,7 @@ static void __fix_instructions(uint32_t *__restrict inp, int32_t count, uint32_t
                   "please use A64_MAX_INSTRUCTIONS!");
 #ifndef NDEBUG
     if (count > A64_MAX_INSTRUCTIONS) {
-        A64_LOGE("too many fixing instructions!");
+        CODE_INJECT_ERR("too many fixing instructions!\n");
     } //if
 #endif // NDEBUG
 
@@ -490,7 +490,7 @@ extern "C" {
         A64HookInit()
         {
             __make_rwx(__insns_pool, sizeof(__insns_pool));
-            A64_LOGI("insns pool initialized.");
+            CODE_INJECT_INFO("insns pool initialized\n");
         }
     };
     static A64HookInit __init;
@@ -507,14 +507,14 @@ extern "C" {
             return __insns_pool[i];
         } //if
 
-        A64_LOGE("failed to allocate trampoline!");
+        CODE_INJECT_ERR("failed to allocate trampoline!\n");
         return NULL;
     }
 
     //-------------------------------------------------------------------------
 
     A64_JNIEXPORT void *A64HookFunctionV(void *const symbol, void *const replace,
-                                         void *const rwx, const uintptr_t rwx_size)
+                                         void *const rwx, const uintptr_t rwx_size, bool jump_ret)
     {
         static constexpr uint_fast64_t mask = 0x03ffffffu; // 0b00000011111111111111111111111111
 
@@ -523,49 +523,72 @@ extern "C" {
         static_assert(A64_MAX_INSTRUCTIONS >= 5, "please fix A64_MAX_INSTRUCTIONS!");
         auto pc_offset = static_cast<int64_t>(__intval(replace) - __intval(symbol)) >> 2;
         if (llabs(pc_offset) >= (mask >>1)) {
-            int32_t count = (reinterpret_cast<uint64_t>(original + 2) & 7u) != 0u ? 5 : 4;
+            int32_t count;
+            if (jump_ret)
+                count = (reinterpret_cast<uint64_t>(original + 3) & 7u) != 0u ? 6 : 5;
+            else
+                count = (reinterpret_cast<uint64_t>(original + 2) & 7u) != 0u ? 5 : 4;
             if (trampoline) {
                 if (rwx_size < count * 10u) {
-                    A64_LOGE("rwx size is too small to hold %u bytes backup instructions!", count * 10u);
+                    CODE_INJECT_ERR("rwx size is too small to hold %u bytes backup instructions!\n", count * 10u);
                     return NULL;
                 } //if
                 __fix_instructions(original, count, trampoline);
             } //if
 
-            if (__make_rwx(original, 5 * sizeof(uint32_t)) == 0) {
-                if (count == 5) {
-                    original[0] = A64_NOP;
-                    ++original;
-                } //if
-                original[0] = 0x58000051u; // LDR X17, #0x8
-                original[1] = 0xd61f0220u; // BR X17
-                *reinterpret_cast<int64_t *>(original + 2) = __intval(replace);
-                __flush_cache(symbol, 5 * sizeof(uint32_t));
+            if (__make_rwx(original, 6 * sizeof(uint32_t)) == 0) {
+                if (jump_ret) {
+                    if (count == 6) {
+                        original[0] = A64_NOP;
+                        ++original;
+                    }
+                    original[0] = 0xa9bf7bfd; // stp x29, x30, [sp, #-16]!
+                    original[1] = 0x58000051u; // LDR X17, #0x8
+                    original[2] = 0xd63f0220u; // BLR X17
+                } else {
+                    if (count == 5) {
+                        original[0] = A64_NOP;
+                        ++original;
+                    } //if
+                    original[0] = 0x58000051u; // LDR X17, #0x8
+                    original[1] = 0xd61f0220u; // BR X17
+                }
+                if (jump_ret)
+                    *reinterpret_cast<int64_t *>(original + 3) = __intval(replace);
+                else
+                    *reinterpret_cast<int64_t *>(original + 2) = __intval(replace);
+                __flush_cache(symbol, 6 * sizeof(uint32_t));
 
-                A64_LOGI("inline hook %p->%p successfully! %zu bytes overwritten",
-                         symbol, replace, 5 * sizeof(uint32_t));
+                CODE_INJECT_INFO("inline hook %p->%p successfully! %zu bytes overwritten\n",
+                         symbol, replace, 6 * sizeof(uint32_t));
             } else {
-                A64_LOGE("mprotect failed with errno = %d, p = %p, size = %zu",
-                         errno, original, 5 * sizeof(uint32_t));
+                CODE_INJECT_ERR("mprotect failed with errno = %d, p = %p, size = %zu",
+                         errno, original, 6 * sizeof(uint32_t));
                 trampoline = NULL;
             } //if
         } else {
             if (trampoline) {
                 if (rwx_size < 1u * 10u) {
-                    A64_LOGE("rwx size is too small to hold %u bytes backup instructions!", 1u * 10u);
+                    CODE_INJECT_ERR("rwx size is too small to hold %u bytes backup instructions!\n", 1u * 10u);
                     return NULL;
                 } //if
                 __fix_instructions(original, 1, trampoline);
             } //if
 
             if (__make_rwx(original, 1 * sizeof(uint32_t)) == 0) {
-                __sync_cmpswap(original, *original, 0x14000000u | (pc_offset & mask)); // "B" ADDR_PCREL26
+                if (jump_ret) {
+                    original[0] = 0xa9bf7bfd;
+                    original++;
+                    __sync_cmpswap(original, *original, 0x94000000u | (pc_offset & mask)); // "BL" ADDR_PCREL26
+                }
+                else
+                    __sync_cmpswap(original, *original, 0x14000000u | (pc_offset & mask)); // "B" ADDR_PCREL26
                 __flush_cache(symbol, 1 * sizeof(uint32_t));
 
-                A64_LOGI("inline hook %p->%p successfully! %zu bytes overwritten",
+                CODE_INJECT_INFO("inline hook %p->%p successfully! %zu bytes overwritten\n",
                          symbol, replace, 1 * sizeof(uint32_t));
             } else {
-                A64_LOGE("mprotect failed with errno = %d, p = %p, size = %zu",
+                CODE_INJECT_ERR("mprotect failed with errno = %d, p = %p, size = %zu\n",
                          errno, original, 1 * sizeof(uint32_t));
                 trampoline = NULL;
             } //if
@@ -576,7 +599,7 @@ extern "C" {
 
     //-------------------------------------------------------------------------
 
-    A64_JNIEXPORT void A64HookFunction(void *const symbol, void *const replace, void **result)
+    A64_JNIEXPORT void A64HookFunction(void *const symbol, void *const replace, void **result, bool jump_ret)
     {
         void *trampoline = NULL;
         if (result != NULL) {
@@ -588,7 +611,7 @@ extern "C" {
         // fix Android 10 .text segment is read-only by default
         __make_rwx(symbol, 5 * sizeof(size_t));
 
-        trampoline = A64HookFunctionV(symbol, replace, trampoline, A64_MAX_INSTRUCTIONS * 10u);
+        trampoline = A64HookFunctionV(symbol, replace, trampoline, A64_MAX_INSTRUCTIONS * 10u, jump_ret);
         if (trampoline == NULL && result != NULL) {
             *result = NULL;
         } //if

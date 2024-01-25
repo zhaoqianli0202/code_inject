@@ -4,7 +4,7 @@ ifeq (${BUILD_OUTPUT_PATH},)
 export BUILD_OUTPUT_PATH=$(shell pwd)
 endif
 
-INJECTOR = ${BUILD_OUTPUT_PATH}/INJECTOR
+INJECTOR = ${BUILD_OUTPUT_PATH}/code_injector
 LIBCODE_INJECT = ${BUILD_OUTPUT_PATH}/libcode_inject.so
 INCS += -I${CURRENT_DIR}/includes/
 
@@ -13,7 +13,7 @@ all: $(LIBCODE_INJECT) $(INJECTOR)
 
 LIBINJECTSRC = $(wildcard $(CURRENT_DIR)/src/arm64_inlinehook.cpp)
 LIBINJECTOBJS := $(LIBINJECTSRC:$(CURRENT_DIR)%.cpp=$(BUILD_OUTPUT_PATH)/%.o)
-LIBS1 = $(LIBS) -lalog
+LIBS1 = $(LIBS)
 CXXFLAGS += -g -O3
 
 $(BUILD_OUTPUT_PATH)/%.o: $(CURRENT_DIR)/%.cpp
