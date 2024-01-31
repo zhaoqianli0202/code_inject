@@ -6,18 +6,20 @@
 #include <unordered_map>
 #include "hook_helper.h"
 #define MAX_STACK_DEPTH (512)
+#define CODE_INJ_ALIGN (0x10)
 
 #define HOOK_HELPER_ERR(fmt, ...) printf("[ERR]" fmt, ##__VA_ARGS__)
 #define HOOK_HELPER_INFO(fmt, ...) printf("[INFO]" fmt, ##__VA_ARGS__)
 #define HOOK_HELPER_WARN(fmt, ...) printf("[WARN]" fmt, ##__VA_ARGS__)
 
+// #define DEGBUG
 #ifdef DEGBUG
 #define HOOK_HELPER_DBG(fmt, ...) printf("[DBG]" fmt, ##__VA_ARGS__)
 #else
 #define HOOK_HELPER_DBG(fmt, ...)
 #endif
 
-void *callback;
+void *helper_callback;
 extern "C" void inject_return(void);
 struct ret_info_t {
     char *hook_func_name;
@@ -50,12 +52,33 @@ void init() {
     pthread_key_create(&hook_key, &free_stack);
 }
 
+static uint64_t up_align_address(uint64_t addr, uint8_t align) {
+    uintptr_t offset = addr % align;
+
+    if (offset != 0) {
+        size_t align_bytes = align - offset;
+        addr += align_bytes;
+    } else {
+        addr += align;
+    }
+
+    return addr;
+}
+
 extern "C"
 __attribute__((noinline))
 uint64_t inline_func_entry(uint64_t *parent_loc, struct hooker_regs *regs, uint64_t hook_addr) {
-    hook_addr &= (~0x1f);
-    HOOK_HELPER_DBG("inline_func_entry begin hook_addr=%lx\n", hook_addr);
     uint64_t ret = 0;
+    HOOK_HELPER_DBG("inline_func_entry begin hook_addr_orgi=%lx\n", hook_addr);
+    hook_addr = up_align_address(hook_addr, CODE_INJ_ALIGN);
+    HOOK_HELPER_DBG("inline_func_entry begin hook_addr=%lx\n", hook_addr);
+    /*addr correction*/
+    if (hook_map.count(hook_addr) <= 0) {
+        if (hook_map.count(hook_addr - CODE_INJ_ALIGN) > 0) {
+            hook_addr -= CODE_INJ_ALIGN;
+            HOOK_HELPER_DBG("inline_func_entry fixed hook_addr=%lx\n", hook_addr);
+        }
+    }
     if (hook_map.count(hook_addr) > 0) {
         if (hook_map[hook_addr].hook_func) {
             HOOK_HELPER_DBG("hook_map[hook_addr].hook_func %p, *parent_loc=%lx\n", hook_map[hook_addr].hook_func, *parent_loc);
@@ -73,7 +96,7 @@ uint64_t inline_func_entry(uint64_t *parent_loc, struct hooker_regs *regs, uint6
         pthread_setspecific(hook_key, stack);
     }
     if (stack->depth >= MAX_STACK_DEPTH) {
-        HOOK_HELPER_ERR("stack depth exceeded the limit %d\n", MAX_STACK_DEPTH - 1);
+        HOOK_HELPER_ERR("stack depth exceeded the limit %d\n", MAX_STACK_DEPTH);
         abort();
         return 0;
     }
@@ -103,7 +126,7 @@ extern "C"
 __attribute__((noinline))
 void injector_register(uint64_t hook_addr, uint64_t **p_orig_addr, void *hook_func, void *hook_func_ret, char *hook_func_name) {
     uint64_t orig_hook_addr = hook_addr;
-    hook_addr &= (~0x1f);
+    hook_addr = up_align_address(hook_addr, CODE_INJ_ALIGN);
 
     if (!p_orig_addr)
         hook_map[hook_addr].orig_addr = nullptr;
@@ -113,16 +136,26 @@ void injector_register(uint64_t hook_addr, uint64_t **p_orig_addr, void *hook_fu
     hook_map[hook_addr].hook_func = (HOOK_FUNC)hook_func;
     hook_map[hook_addr].hook_func_ret = (HOOK_FUNC_RET)hook_func_ret;
     strncpy(hook_map[hook_addr].hook_func_name, hook_func_name, sizeof(hook_map[hook_addr].hook_func_name) - 1);
-    HOOK_HELPER_DBG("hook_addr=%lx, orig_addr=%p, p_orig_addr=%lx, callback=%lx, hook_func=%p, hook_func_ret=%p\n", hook_addr, hook_map[hook_addr].orig_addr, (unsigned long)p_orig_addr, (unsigned long)callback, hook_map[hook_addr].hook_func, hook_map[hook_addr].hook_func_ret);
+    HOOK_HELPER_DBG("hook_addr=%lx, orig_hook_addr=%lx, orig_addr=%p, p_orig_addr=%lx, helper_callback=%lx, hook_func=%p, hook_func_ret=%p\n", hook_addr, orig_hook_addr,
+        hook_map[hook_addr].orig_addr, (unsigned long)p_orig_addr, (unsigned long)helper_callback, hook_map[hook_addr].hook_func, hook_map[hook_addr].hook_func_ret);
 }
 
 extern "C"
 __attribute__((noinline))
 void *find_org_code(uint64_t hook_addr) {
-    hook_addr &= (~0x1f);
-    HOOK_HELPER_DBG("find_org_code begin, hook_addr:%lx\n", hook_addr);
-    if (hook_map.count(hook_addr) > 0)
+    hook_addr = up_align_address(hook_addr, CODE_INJ_ALIGN);
+    HOOK_HELPER_DBG("find_org_code begin hook_addr=%lx\n", hook_addr);
+    /*addr correction*/
+    if (hook_map.count(hook_addr) <= 0) {
+        if (hook_map.count(hook_addr - CODE_INJ_ALIGN) > 0) {
+            hook_addr -= CODE_INJ_ALIGN;
+            HOOK_HELPER_DBG("inline_func_entry fixed hook_addr=%lx\n", hook_addr);
+        }
+    }
+    if (hook_map.count(hook_addr) > 0) {
+        HOOK_HELPER_DBG("find_org_code orgi addr:0x%p\n", hook_map[hook_addr].orig_addr);
         return hook_map[hook_addr].orig_addr;
+    }
     HOOK_HELPER_DBG("Find address 0x%lx org_code failed\n", hook_addr);
     return nullptr;
 }

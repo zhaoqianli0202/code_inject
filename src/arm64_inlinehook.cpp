@@ -567,12 +567,14 @@ extern "C" {
                 trampoline = NULL;
             } //if
         } else {
+            int32_t count;
+            count = jump_ret ? 2 : 1;
             if (trampoline) {
                 if (rwx_size < 1u * 10u) {
                     CODE_INJECT_ERR("rwx size is too small to hold %u bytes backup instructions!\n", 1u * 10u);
                     return NULL;
                 } //if
-                __fix_instructions(original, 1, trampoline);
+                __fix_instructions(original, count, trampoline);
             } //if
 
             if (__make_rwx(original, 1 * sizeof(uint32_t)) == 0) {
@@ -580,10 +582,10 @@ extern "C" {
                     original[0] = 0xa9bf7bfd;
                     original++;
                     __sync_cmpswap(original, *original, 0x94000000u | (pc_offset & mask)); // "BL" ADDR_PCREL26
-                }
-                else
+                } else {
                     __sync_cmpswap(original, *original, 0x14000000u | (pc_offset & mask)); // "B" ADDR_PCREL26
-                __flush_cache(symbol, 1 * sizeof(uint32_t));
+                }
+                __flush_cache(symbol, count * sizeof(uint32_t));
 
                 CODE_INJECT_INFO("inline hook %p->%p successfully! %zu bytes overwritten\n",
                          symbol, replace, 1 * sizeof(uint32_t));

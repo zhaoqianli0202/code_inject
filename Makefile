@@ -24,10 +24,11 @@ $(LIBCODE_INJECT): $(LIBINJECTOBJS)
 	$(CXX) $(CFLAGS_DYNAMIC) $^ $(LDFLAGS) $(LIBS1) -o $@
 
 ######
-HOTPATCHSRC = $(wildcard $(CURRENT_DIR)/src/code_injector.cpp $(CURRENT_DIR)/src/inject_info.cpp $(CURRENT_DIR)/src/injector.cpp)
+HOTPATCHSRC = $(wildcard $(CURRENT_DIR)/src/code_injector.cpp $(CURRENT_DIR)/src/inject_info.cpp $(CURRENT_DIR)/src/injector.cpp $(CURRENT_DIR)/src/inject_parser.cpp)
 PATCHOBJS := $(HOTPATCHSRC:$(CURRENT_DIR)%.cpp=$(BUILD_OUTPUT_PATH)/%.o)
-LIBS2 = $(LIBS) -lalog -lcode_inject -lelf -ldl
+LIBS2 = $(LIBS) -lalog -lcode_inject -lelf -ldl -ljsoncpp
 LDFLAGS += -L${BUILD_OUTPUT_PATH}/
+INCS += -I${TARGET_THIRD_PARTY_DIR}/usr/include
 
 $(PATCHOBJS): ${BUILD_OUTPUT_PATH}/%.o:$(CURRENT_DIR)/%.cpp
 	$(CXX) $(CXXFLAGS) $(INCS) -c $^ -o $@

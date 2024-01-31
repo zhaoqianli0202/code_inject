@@ -67,7 +67,7 @@ GLOBAL(inject_entry)
 
 org_insn:
 	br x17
-	
+
 END(inject_entry)
 
 GLOBAL(inject_return)

@@ -1,0 +1,28 @@
+{
+	"injector-path": "/map/inject/libcode_inject.so",
+	"injector-func": "A64HookFunction",
+	"helper-path": "/map/inject/libhook_helper.so",
+	"helper-func": "inject_entry",
+	"pid": 6612,
+	"inject-list": [
+			{
+					"inject_lib_path": "/map/inject/test.elf",
+					"inject_func": "_Z5funcci",
+					"target_lib_path": "/map/inject/helper_hooker.so",
+					"target_func": "helper_hook_func",
+					"helper_mode": true,
+					"orgi_callback": true,
+					"hook_return": true,
+					"tid": 6612
+			},
+			{
+				"inject_lib_path": "/map/inject/test.elf",
+				"inject_func": "_Z5funcci",
+				"target_lib_path": "/map/inject/sample_patch.so",
+				"target_func": "_Z10funcc_hooki",
+				"helper_mode": false,
+				"orgi_callback": true,
+				"tid": 1024
+			}
+	]
+}

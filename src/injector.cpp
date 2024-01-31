@@ -2,14 +2,13 @@
 #include "inject_info.h"
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <unistd.h>
 
-injector::injector(pid_t tid) : target_tid(tid) {
+injector::injector(pid_t tid) : target_tid(tid), hooker(nullptr), helper(nullptr) {
     dlopen_addr = get_remote_addr(target_tid, lbc_path, (uintptr_t)dlsym(NULL, "__libc_dlopen_mode"));
     dlsym_addr = get_remote_addr(target_tid, lbc_path, (uintptr_t)dlsym(NULL, "__libc_dlsym"));
     dlclose_addr = get_remote_addr(target_tid, lbc_path, (uintptr_t)dlsym(NULL, "__libc_dlclose"));
-    helper = nullptr;
-    hooker = nullptr;
 }
 
 int injector::wait_for_sigstop() {
@@ -53,8 +52,8 @@ int injector::wait_for_sigstop() {
 	return -1;
 }
 
-int injector::ptrace_attach() {
-    if (ptrace(PTRACE_ATTACH, target_tid, NULL, 0) < 0) {
+int injector::ptrace_attach(pid_t tid) {
+    if (ptrace(PTRACE_ATTACH, tid, NULL, 0) < 0) {
         CODE_INJECT_ERR("ptrace_attach failed\n");
         return -1;
     }
@@ -81,7 +80,7 @@ int injector::ptrace_getregs(struct pt_regs * regs) {
 }
 
 int injector::attach_thread() {
-    if (ptrace_attach() < -1) {
+    if (ptrace_attach(target_tid) < -1) {
         CODE_INJECT_ERR("attatch failed\n");
         return -1;
     }
@@ -224,7 +223,6 @@ uintptr_t injector::ptrace_retval(struct pt_regs * regs) {
 }
 
 int injector::ptrace_call_wrapper(pid_t pid, const char * func_name, uintptr_t func_addr, uintptr_t * parameters, int param_num, struct pt_regs * regs) { 
-    CODE_INJECT_INFO("Calling %s in target process.\n", func_name);
     if (ptrace_call(pid, func_addr, parameters, param_num, regs) == -1) {
         CODE_INJECT_ERR("Calling %s faild!\n", func_name);
         return -1;
@@ -245,7 +243,7 @@ int injector::dl_remote_func_addr(inject_info &target) {
     memcpy(&regs, &ori_regs, sizeof(regs));
     parameters[0] = ptrace_push(target_tid, &regs, target.elf_path.c_str(), target.elf_path.length() + 1);
     parameters[1] = RTLD_NOW | RTLD_GLOBAL;
-
+    CODE_INJECT_INFO("calling dlopen(0x%lx) %s in remote\n", dlopen_addr, target.elf_path.c_str());
     if ((ret = ptrace_call_wrapper(target_tid, "dlopen", dlopen_addr, parameters, 2, &regs))) {
         CODE_INJECT_ERR("ptrace call dlopen failed ret:%d\n", ret);
         return -1;
@@ -260,7 +258,7 @@ int injector::dl_remote_func_addr(inject_info &target) {
     memcpy(&regs,&ori_regs,sizeof(regs));
     parameters[0] = (uintptr_t)sohandle;
     parameters[1] = (uintptr_t)ptrace_push(target_tid,&regs, target.sym_name.c_str(), target.sym_name.length() + 1);
-
+    CODE_INJECT_INFO("calling dlsym(0x%lx) %s in remote\n", dlsym_addr, target.sym_name.c_str());
     if ((ret = ptrace_call_wrapper(target_tid, "dlsym", dlsym_addr, parameters, 2, &regs))) {
         CODE_INJECT_ERR("ptrace call dlsym %s failed ret:%d\n", target.sym_name.c_str(), ret);
         return -3;
@@ -303,7 +301,8 @@ int injector::exec_target_inlinehook(inject_info &where, inject_info &code, inje
     }
     parameters[2] = callback.sym_addr;
     parameters[3] = helper_mode;
-
+    CODE_INJECT_INFO("para: 0x%lx, 0x%lx, 0x%lx, 0x%lx\n", parameters[0], parameters[1], parameters[2], parameters[3]);
+    CODE_INJECT_INFO("calling %s in remote\n", hooker->sym_name.c_str());
     if ((ret = ptrace_call_wrapper(target_tid, hooker->sym_name.c_str(), hooker->sym_addr, parameters, 4, &regs))) {
         CODE_INJECT_ERR("ptrace call %s failed ret:%d\n", hooker->sym_name.c_str(), ret);
         return -3;
@@ -312,7 +311,29 @@ int injector::exec_target_inlinehook(inject_info &where, inject_info &code, inje
     return 0;
 }
 
-int injector::injector_register(inject_info &where, inject_info &code, bool callback_orgi, bool hook_return, bool helper_mode) {
+int injector::injector_set_hooker(inject_info &target) {
+    if (load_inject_function(target) < 0) {
+        CODE_INJECT_ERR("injector inject hooker failed\n");
+        return -1;
+    }
+    hooker = &target;
+    return 0;
+}
+
+int injector::injector_set_helper(inject_info &target) {
+    if (load_inject_function(target) < 0) {
+        CODE_INJECT_ERR("injector inject hooker failed\n");
+        return -1;
+    }
+    helper = &target;
+    return 0;
+}
+
+void injector::set_target_pid(pid_t tid) {
+    target_tid = tid;
+}
+
+int injector::inline_code_inject(inject_info &where, inject_info &code, bool callback_orgi, bool hook_return, bool helper_mode) {
     int ret;
     struct pt_regs regs;
     uintptr_t parameters[10];
@@ -320,20 +341,25 @@ int injector::injector_register(inject_info &where, inject_info &code, bool call
 
     /*callback original function*/
     if (callback_orgi) {
-        if (!callback) {
-            callback = new inject_info(helper ? helper->elf_path : code.elf_path, "callback");
-            if (helper_mode && helper)
-                callback->elf_path = helper->elf_path;
-            else
-                callback->elf_path = code.elf_path;
-
-            callback->sym_name = "callback";
-            if (load_inject_function(*callback) < 0) {
-                CODE_INJECT_ERR("injector load target callback failed\n");
-                return -1;
+        if (helper_mode && helper) {
+            if (!helper_callback) {
+                helper_callback = std::make_shared<inject_info>(helper->elf_path, "helper_callback");
+                if (load_inject_function(*helper_callback) < 0) {
+                    CODE_INJECT_ERR("injector load target helper_callback failed\n");
+                    return -1;
+                }
             }
+            cb = *helper_callback;
+        } else {
+            if (!callback) {
+                callback = std::make_shared<inject_info>(code.elf_path, "callback");
+                if (load_inject_function(*callback) < 0) {
+                    CODE_INJECT_ERR("injector load target callback failed\n");
+                    return -1;
+                }
+            }
+            cb = *callback;
         }
-        cb = *callback;
     } else {
         cb.sym_addr = 0;
     }
@@ -367,6 +393,7 @@ int injector::injector_register(inject_info &where, inject_info &code, bool call
             parameters[2] = code.sym_addr;
             parameters[3] = code_ret.sym_addr;
             parameters[4] = (uintptr_t)ptrace_push(target_tid,&regs, where.sym_name.c_str(), where.sym_name.length() + 1);
+            CODE_INJECT_INFO("calling %s in remote\n", helper->sym_name.c_str());
             if ((ret = ptrace_call_wrapper(target_tid, helper->sym_name.c_str(), helper->sym_addr, parameters, 5, &regs))) {
                 CODE_INJECT_ERR("ptrace call %s failed ret:%d\n", helper->sym_name.c_str(), ret);
                 return -3;
@@ -376,5 +403,68 @@ int injector::injector_register(inject_info &where, inject_info &code, bool call
             return -4;
         }
     }
+    return 0;
+}
+
+int injector::injector_prepare(pid_t tid, inject_info &inject, inject_info &hooker, bool helper_mode,inject_info &hook_helper) {
+    set_target_pid(tid);
+    if (attach_thread()) {
+        CODE_INJECT_ERR("attach thread %d failed\n", tid);
+        return 1;
+    }
+    if (injector_set_hooker(hooker) < 0) {
+        CODE_INJECT_ERR("injector_set_hooker failed\n");
+        return -2;
+    }
+    if (helper_mode) {
+        if (injector_set_helper(hook_helper) < 0) {
+            CODE_INJECT_ERR("injector_set_helper failed\n");
+            return -3;
+        }
+    }
+
+    return 0;
+}
+
+int injector::injector_register(inject_info &inject, inject_info &target, bool callback_orgi, bool hook_return, bool helper_mode) {
+    if (load_inject_function(target) < 0) {
+        CODE_INJECT_ERR("injector inject target failed\n");
+        return -1;
+    }
+
+    if (inline_code_inject(inject, target, callback_orgi, hook_return, helper_mode) < 0) {
+        CODE_INJECT_ERR("inline_code_inject failed\n");
+        return -2;
+    }
+    return 0;
+}
+
+int injector::injector_finish() {
+    if (detach_thread()) {
+        CODE_INJECT_ERR("detach thread %d failed\n", target_tid);
+        return -1;
+    }
+    return 0;
+}
+
+int injector::injector_register_full(pid_t tid, inject_info &inject, inject_info &target, bool callback_orgi, bool hook_return, bool helper_mode) {
+    if (!inject.get_reloc_addr(tid)) {
+        CODE_INJECT_ERR("injector get runtime inject address failed\n");
+        return -1;
+    }
+    set_target_pid(tid);
+    if (attach_thread()) {
+        CODE_INJECT_ERR("attach thread %d failed\n", tid);
+        return -2;
+    }
+    if (injector_register(inject, target, callback_orgi, hook_return, helper_mode) < 0) {
+        CODE_INJECT_ERR("injector_register %d failed\n", tid);
+    }
+
+    if (detach_thread()) {
+        CODE_INJECT_ERR("detach thread %d failed\n", tid);
+        return -3;
+    }
+
     return 0;
 }
