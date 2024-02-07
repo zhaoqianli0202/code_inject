@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <sstream>
 #include <sys/select.h>
+#include <sys/wait.h>
 #include "arm64_inlinehook.h"
 #include "inject_info.h"
 #include "injector.h"
@@ -40,13 +41,14 @@ int set_fifo_policy() {
 
 int main(int argc, char *argv[]) {
     int opt;
-    pid_t pid = -1;
+    pid_t pid = 0;
     struct timeval start, end;
     char *sub_command = nullptr;
     bool helper_mode = false;
     bool orgi_callback = false;
     bool hook_return = false;
     char *config_json = nullptr;
+    subcmd_control subc;
     inject_info inject;
     inject_info target;
     inject_info hooker("/map/inject/libcode_inject.so", "A64HookFunction");
@@ -83,6 +85,7 @@ int main(int argc, char *argv[]) {
             break;
             case 'c':
                 sub_command = optarg;
+                CODE_INJECT_INFO("Sub command mode: %s\n", sub_command);
             break;
             case 'e':
                 if (hook_helper.parse_inject_info(optarg)) {
@@ -106,44 +109,64 @@ int main(int argc, char *argv[]) {
             break;
         }
     }
+
     if (!sub_command) {
         if (set_fifo_policy() < 0) {
             CODE_INJECT_ERR("set hooker policy failed\n");
             return -1;
         }
+    } else {
+        pid = subc.exec_child_cmd(sub_command, hook_helper.elf_path.c_str());
+        if (pid <= 0) {
+            CODE_INJECT_ERR("exec_child_cmd failed\n");
+            return -2;
+        }
+        if (subc.wait_child_ready() < 0) {
+            CODE_INJECT_ERR("wait_child_ready failed\n");
+            goto waitchild;
+        }
     }
 
     if (config_json) {
-        inject_parser parser(config_json);
-        if (!parser.parse_inject_config()) {
-            CODE_INJECT_ERR("parse inject config file:%s failed\n", config_json);
-            return -2;
-        }
-        injector inj(parser.pid);
-        if (inj.injector_prepare(parser.pid, inject, hooker, true, hook_helper) > 0) {
-            CODE_INJECT_ERR("injector_prepare failed\n");
-            return -3;
-        }
-        if (inj.injector_finish() < 0) {
-            CODE_INJECT_ERR("injector_finish failed\n");
-            return -4;
-        }
-        for (auto t : parser.targets) {
-            gettimeofday(&start, NULL);
-            if (t->inject.parse_inject_info(t->inject.elf_path + ":" + t->inject.sym_name)) {
-                CODE_INJECT_ERR("parse inejct info failed\n");
-                return -5;
+        try {
+            inject_parser parser(config_json);
+            if (!parser.parse_inject_config()) {
+                CODE_INJECT_ERR("parse inject config file:%s failed\n", config_json);
+                return -2;
             }
-            if (inj.injector_register_full(t->tid, t->inject, t->target, t->orgi_callback, t->hook_return, t->helper_mode) < 0) {
-                CODE_INJECT_ERR("injector_register inject:%s:%s, target:%s:%s failed\n", t->inject.elf_path.c_str(), t->inject.sym_name.c_str(), t->target.elf_path.c_str(), t->target.sym_name.c_str());
-                return -6;
+            if (sub_command)
+                parser.pid = subc.child_pid;
+            injector inj(parser.pid);
+            if (inj.injector_prepare(parser.pid, inject, hooker, true, hook_helper) > 0) {
+                CODE_INJECT_ERR("injector_prepare failed\n");
+                return -3;
             }
-            gettimeofday(&end, NULL);
-            CODE_INJECT_INFO("Code %s:%s inject %s:%s spend %ld us\n", t->inject.elf_path.c_str(), t->inject.sym_name.c_str(),
-                                t->target.elf_path.c_str(), t->target.sym_name.c_str(), ((end.tv_sec - start.tv_sec)*1000*1000) + (end.tv_usec - start.tv_usec));
+            if (inj.injector_finish() < 0) {
+                CODE_INJECT_ERR("injector_finish failed\n");
+                return -4;
+            }
+            for (auto t : parser.targets) {
+                gettimeofday(&start, NULL);
+                if (t->inject.parse_inject_info(t->inject.elf_path + ":" + t->inject.sym_name)) {
+                    CODE_INJECT_ERR("parse inejct info failed\n");
+                    return -5;
+                }
+                if (inj.injector_register_full(sub_command ? subc.child_pid : t->tid,
+                                                t->inject, t->target, t->orgi_callback, t->hook_return, t->helper_mode) < 0) {
+                    CODE_INJECT_ERR("injector_register inject:%s:%s, target:%s:%s failed\n", t->inject.elf_path.c_str(), t->inject.sym_name.c_str(), t->target.elf_path.c_str(), t->target.sym_name.c_str());
+                    return -6;
+                }
+                gettimeofday(&end, NULL);
+                CODE_INJECT_INFO("Code %s:%s inject %s:%s spend %ld us\n", t->inject.elf_path.c_str(), t->inject.sym_name.c_str(),
+                                    t->target.elf_path.c_str(), t->target.sym_name.c_str(), ((end.tv_sec - start.tv_sec)*1000*1000) + (end.tv_usec - start.tv_usec));
+            }
+        } catch (const std::exception& e) {
+            CODE_INJECT_ERR("json file %s format wrong\n", config_json);
+            return -1;
         }
+
     } else {
-        if (pid < 0) {
+        if (!pid) {
             CODE_INJECT_ERR("injector must set pid\n");
             show_help();
             return -7;
@@ -163,6 +186,17 @@ int main(int argc, char *argv[]) {
                             target.elf_path.c_str(), target.sym_name.c_str(), ((end.tv_sec - start.tv_sec)*1000*1000) + (end.tv_usec - start.tv_usec));
     }
 
+    if (sub_command) {
+        if (subc.finish_inject() < 0)
+            CODE_INJECT_ERR("finish_inject failed\n");
+    }
+waitchild:
+    if (sub_command && pid) {
+        if (waitpid(pid, NULL, 0) < 0) {
+            CODE_INJECT_ERR("Wait child:%d failed\n", pid);
+            return -1;
+        }
+    }
 
     return 0;
 }

@@ -10,6 +10,13 @@ int funcc(int val) {
     printf("zql funcc value=%d\n", val);
     return 1;
 }
+
+__attribute__((noinline))
+int funcc3(int val) {
+    printf("zql funcc3 value=%d\n", val);
+    return 1;
+}
+
 int funcc2(int val);
 
 int main() {

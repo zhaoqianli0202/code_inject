@@ -27,10 +27,13 @@ bool inject_parser::parse_inject_config() {
         hooker.sym_name = search_key(root, "injector-func").asString();
         helper.elf_path = search_key(root, "helper-path").asString();
         helper.sym_name = search_key(root, "helper-func").asString();
-        pid = search_key(root, "pid").asInt();
-        if (pid <= 0) {
-            CODE_INJECT_ERR("Incorrect PID number:%d\n", pid);
-            return false;
+        online = search_key(root, "online").asBool();
+        if (online) {
+            pid = search_key(root, "pid").asInt();
+            if (pid <= 0) {
+                CODE_INJECT_ERR("Incorrect PID number:%d\n", pid);
+                return false;
+            }
         }
         CODE_INJECT_INFO("hooker: %s:%s\n", hooker.elf_path.c_str(), hooker.sym_name.c_str());
         CODE_INJECT_INFO("helper: %s:%s\n", helper.elf_path.c_str(), helper.sym_name.c_str());
@@ -42,10 +45,12 @@ bool inject_parser::parse_inject_config() {
             point->target.sym_name = search_key(inject, "target_func").asString();
             point->inject.elf_path = search_key(inject, "inject_lib_path").asString();
             point->inject.sym_name = search_key(inject, "inject_func").asString();
-            point->tid = search_key(inject, "tid").asInt();
-            if (point->tid <= 0) {
-                CODE_INJECT_ERR("Incorrect TID number:%d\n", point->tid);
-                return false;
+            if (online) {
+                point->tid = search_key(inject, "tid").asInt();
+                if (point->tid <= 0) {
+                    CODE_INJECT_ERR("Incorrect TID number:%d\n", point->tid);
+                    return false;
+                }
             }
             point->helper_mode = search_key(inject, "helper_mode").asBool();
             point->orgi_callback = search_key(inject, "orgi_callback").asBool();
@@ -69,5 +74,5 @@ Json::Value inject_parser::search_key(Json::Value &root, const std::string &key)
     if (root.isMember(key)) {
         return root[key];
     }
-    throw std::runtime_error("Not found key");
+    throw std::runtime_error("Not found key:" + key);
 }

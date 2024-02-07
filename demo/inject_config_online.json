@@ -3,6 +3,7 @@
 	"injector-func": "A64HookFunction",
 	"helper-path": "/map/inject/libhook_helper.so",
 	"helper-func": "inject_entry",
+	"online": true,
 	"pid": 6612,
 	"inject-list": [
 			{
@@ -16,8 +17,8 @@
 					"tid": 6612
 			},
 			{
-				"inject_lib_path": "/map/inject/test.elf",
-				"inject_func": "_Z5funcci",
+				"inject_lib_path": "/map/inject/libtest_lib.so",
+				"inject_func": "_Z7funcc22i",
 				"target_lib_path": "/map/inject/sample_patch.so",
 				"target_func": "_Z10funcc_hooki",
 				"helper_mode": false,

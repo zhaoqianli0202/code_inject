@@ -15,3 +15,9 @@ int funcc2(int val) {
     funcc22(val);
     return 3;
 }
+
+__attribute__((noinline))
+int funcc4(int val) {
+    printf("zql funcc4 value=%d\n", val);
+    return 3;
+}

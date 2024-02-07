@@ -5,7 +5,7 @@ export BUILD_OUTPUT_PATH=$(shell pwd)
 endif
 
 LIBHOOK_HELPER = ${BUILD_OUTPUT_PATH}/libhook_helper.so
-INCS += -I$(CURRENT_DIR)/
+INCS += -I$(CURRENT_DIR)/ -I$(CURRENT_DIR)/../includes/
 
 .PHONY:all clean
 all: $(LIBHOOK_HELPER)

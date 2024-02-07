@@ -2,6 +2,7 @@
 #include "common.h"
 #include "inject_info.h"
 #include "arm64_inlinehook.h"
+#include <memory>
 
 #define CPSR_T_MASK     ( 1u << 5 )
 #define lr regs[30]
@@ -18,7 +19,8 @@ private:
     pid_t target_tid;
     struct pt_regs ori_regs;
     uintptr_t dlopen_addr, dlsym_addr, dlclose_addr;
-    inject_info *callback;
+    std::shared_ptr<inject_info> callback;
+    std::shared_ptr<inject_info> helper_callback;
     int ptrace_attach(pid_t tid);
     int ptrace_getregs(struct pt_regs * regs);
     int wait_for_sigstop();
