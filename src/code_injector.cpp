@@ -7,6 +7,7 @@
 #include <sstream>
 #include <sys/select.h>
 #include <sys/wait.h>
+#include <iostream>
 #include "arm64_inlinehook.h"
 #include "inject_info.h"
 #include "injector.h"
@@ -19,7 +20,19 @@ extern "C" {
 }
 
 void show_help() {
-
+    std::cout << "Code_injector for runtime code inject" << std::endl;
+    std::cout << "Options:" << std::endl;
+    std::cout << "\t-p $TARGET_PID, target process pid for runtime inject" << std::endl;
+    std::cout << "\t-i elf_file_path:func_name/hex_addr, code injection point, e.g. /home/inject/test.elf(.so):_Z5funcci" << std::endl;
+    std::cout << "\t-t elf_file_path:func_name/hex_addr, the code to be injected, e.g. /home/inject/sample_patch.so:_Z10funcc_hooki" << std::endl;
+    std::cout << "\t-k elf_file_path:func_name/hex_addr, injector location, default: /home/inject/libcode_inject.so:A64HookFunction" << std::endl;
+    std::cout << "\t-s, Enable helper mode, use hook_helper to inject code" << std::endl;
+    std::cout << "\t-e elf_file_path:func_name/hex_addr, helper library location, e.g. /home/inject/libhook_helper.so:inject_entry" << std::endl;
+    std::cout << "\t-c, command mode, Starting a program through code_injector, code will be injected before program startup, e.g. code_injector -c \"./test.elf\"" << std::endl;
+    std::cout << "\t-o, Callback original function, original code will be executed before the function returns" << std::endl;
+    std::cout << "\t-r, hook_return mode, in helper mode, helper will inject a return function after injection function return" << std::endl;
+    std::cout << "\t-j, json config mode, code_injector will parser json to translate into injection instructions for batch injection" << std::endl;
+    std::cout << "\t-h, show help" << std::endl;
 }
 
 int set_fifo_policy() {
@@ -106,7 +119,7 @@ int main(int argc, char *argv[]) {
             case 'h':
             default:
                 show_help();
-            break;
+            return -1;
         }
     }
 
@@ -164,10 +177,9 @@ int main(int argc, char *argv[]) {
             CODE_INJECT_ERR("json file %s format wrong\n", config_json);
             return -1;
         }
-
     } else {
         if (!pid) {
-            CODE_INJECT_ERR("injector must set pid\n");
+            CODE_INJECT_ERR("Injector must set pid in online mode\n");
             show_help();
             return -7;
         }
@@ -190,6 +202,7 @@ int main(int argc, char *argv[]) {
         if (subc.finish_inject() < 0)
             CODE_INJECT_ERR("finish_inject failed\n");
     }
+
 waitchild:
     if (sub_command && pid) {
         if (waitpid(pid, NULL, 0) < 0) {

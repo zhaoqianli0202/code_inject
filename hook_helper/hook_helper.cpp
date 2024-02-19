@@ -165,7 +165,7 @@ void *find_org_code(uint64_t hook_addr) {
     return nullptr;
 }
 
-__attribute__((constructor(300)))
+__attribute__((constructor))
 void subcmd_helper_constructor() {
     struct sockaddr_un server_addr;
     struct sockaddr_un client_addr;
