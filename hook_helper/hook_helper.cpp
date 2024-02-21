@@ -14,7 +14,6 @@
 #include "common.h"
 #include "hook_helper.h"
 
-#define MAX_STACK_DEPTH (512)
 #define CODE_INJ_ALIGN (0x10)
 
 void *helper_callback;

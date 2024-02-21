@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#define MAX_STACK_DEPTH (512)
 
 struct hooker_regs {
         uint64_t x0;

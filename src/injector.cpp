@@ -380,10 +380,11 @@ int injector::inline_code_inject(inject_info &where, inject_info &code, bool cal
                 code_ret.sym_addr = 0;
             }
             /*injector_register*/
-            if (helper->sym_name != "injector_register") {
-                helper->sym_name = "injector_register";
-                if (load_inject_function(*helper) < 0) {
-                    CODE_INJECT_ERR("load %s failed\n", helper->sym_name.c_str());
+            if (!reg.sym_addr) {
+                reg.elf_path = helper->elf_path;
+                reg.sym_name = "injector_register";
+                if (load_inject_function(reg) < 0) {
+                    CODE_INJECT_ERR("load %s failed\n", reg.sym_name.c_str());
                     return -2;
                 }
             }
@@ -393,9 +394,9 @@ int injector::inline_code_inject(inject_info &where, inject_info &code, bool cal
             parameters[2] = code.sym_addr;
             parameters[3] = code_ret.sym_addr;
             parameters[4] = (uintptr_t)ptrace_push(target_tid,&regs, where.sym_name.c_str(), where.sym_name.length() + 1);
-            CODE_INJECT_INFO("calling %s in remote\n", helper->sym_name.c_str());
-            if ((ret = ptrace_call_wrapper(target_tid, helper->sym_name.c_str(), helper->sym_addr, parameters, 5, &regs))) {
-                CODE_INJECT_ERR("ptrace call %s failed ret:%d\n", helper->sym_name.c_str(), ret);
+            CODE_INJECT_INFO("calling %s in remote\n", reg.sym_name.c_str());
+            if ((ret = ptrace_call_wrapper(target_tid, reg.sym_name.c_str(), reg.sym_addr, parameters, 5, &regs))) {
+                CODE_INJECT_ERR("ptrace call %s failed ret:%d\n", reg.sym_name.c_str(), ret);
                 return -3;
             }
         } else {
@@ -406,7 +407,7 @@ int injector::inline_code_inject(inject_info &where, inject_info &code, bool cal
     return 0;
 }
 
-int injector::injector_prepare(pid_t tid, inject_info &inject, inject_info &hooker, bool helper_mode,inject_info &hook_helper) {
+int injector::injector_prepare(pid_t tid, inject_info &hooker, bool helper_mode, inject_info &hook_helper) {
     set_target_pid(tid);
     if (attach_thread()) {
         CODE_INJECT_ERR("attach thread %d failed\n", tid);

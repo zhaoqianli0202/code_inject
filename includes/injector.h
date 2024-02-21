@@ -21,6 +21,7 @@ private:
     uintptr_t dlopen_addr, dlsym_addr, dlclose_addr;
     std::shared_ptr<inject_info> callback;
     std::shared_ptr<inject_info> helper_callback;
+    inject_info reg;
     int ptrace_attach(pid_t tid);
     int ptrace_getregs(struct pt_regs * regs);
     int wait_for_sigstop();
@@ -47,7 +48,7 @@ public:
     inject_info *hooker;
     inject_info *helper;
     injector(pid_t tid);
-    int injector_prepare(pid_t tid, inject_info &inject, inject_info &hooker, bool helper_mode,inject_info &hook_helper);
+    int injector_prepare(pid_t tid, inject_info &hooker, bool helper_mode, inject_info &hook_helper);
     int injector_register(inject_info &inject, inject_info &target, bool callback_orgi, bool hook_return, bool helper_mode);
     int injector_finish();
     int injector_register_full(pid_t tid, inject_info &inject, inject_info &target, bool callback_orgi, bool hook_return, bool helper_mode);

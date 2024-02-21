@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
     inject_info hooker("/map/inject/libcode_inject.so", "A64HookFunction");
     inject_info hook_helper("/map/inject/libhook_helper.so", "inject_entry");
 
-    while ((opt = getopt(argc, argv, "j:rop:i:t:sc:e:")) != -1) {
+    while ((opt = getopt(argc, argv, "j:rop:i:t:sc:e:k:")) != -1) {
         switch(opt) {
             case 'p':
                 pid = strtoul(optarg, nullptr, 10);
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
             if (sub_command)
                 parser.pid = subc.child_pid;
             injector inj(parser.pid);
-            if (inj.injector_prepare(parser.pid, inject, hooker, true, hook_helper) > 0) {
+            if (inj.injector_prepare(parser.pid, parser.hooker, true, parser.helper) > 0) {
                 CODE_INJECT_ERR("injector_prepare failed\n");
                 return -3;
             }
@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
             CODE_INJECT_ERR("injector get runtime inject address failed\n");
             return -8;
         }
-        if (!inj.injector_prepare(pid, inject, hooker, helper_mode, hook_helper)) {
+        if (!inj.injector_prepare(pid, hooker, helper_mode, hook_helper)) {
             inj.injector_register(inject, target, orgi_callback, hook_return, helper_mode);
         }
         inj.injector_finish();

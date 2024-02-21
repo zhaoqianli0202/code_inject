@@ -25,14 +25,14 @@
 #define CODE_INJECT_INFO(fmt, ...) printf("[INJECTOR]-[INFO]" fmt, ##__VA_ARGS__)
 #define CODE_INJECT_WARN(fmt, ...) printf("[INJECTOR]-[WARN]" fmt, ##__VA_ARGS__)
 
-#define DEGBUG
+// #define DEGBUG
 #ifdef DEGBUG
 #define CODE_INJECT_DBG(fmt, ...) printf("[DBG]" fmt, ##__VA_ARGS__)
 #else
 #define CODE_INJECT_DBG(fmt, ...)
 #endif
 
-#define DEGBUG_HELPER
+// #define DEGBUG_HELPER
 #define HOOK_HELPER_ERR(fmt, ...) printf("[HELPER]-[ERR]" fmt, ##__VA_ARGS__)
 #define HOOK_HELPER_INFO(fmt, ...) printf("[HELPER]-[INFO]" fmt, ##__VA_ARGS__)
 #define HOOK_HELPER_WARN(fmt, ...) printf("[HELPER]-[WARN]" fmt, ##__VA_ARGS__)
