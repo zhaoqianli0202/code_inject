@@ -1,3 +1,5 @@
+#define LOG_TAG "HOOK_HELPER"
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -35,6 +37,7 @@ struct hook_map {
     HOOK_FUNC hook_func;
     HOOK_FUNC_RET hook_func_ret;
 };
+
 static std::unordered_map<uint64_t, struct hook_map> *hook_map = nullptr;
 static pthread_key_t hook_key = -1;
 

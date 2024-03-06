@@ -141,39 +141,49 @@ int parser::calu_perf_info(Json::Value &root, std::unordered_map<std::string, ui
         float ipc = (float)event_map["instructions"]/event_map["cycles"];
         root["perf"]["IPC"] = ipc;
     }
+    if (event_map.count("stalled-cycles-frontend") && event_map.count("cycles")) {
+        float frontend = (float)event_map["stalled-cycles-frontend"]/event_map["cycles"];
+        frontend *= 100.0;
+        root["perf"]["Frontend_stall"] = frontend;
+    }
+    if (event_map.count("stalled-cycles-backend") && event_map.count("cycles")) {
+        float backend = (float)event_map["stalled-cycles-backend"]/event_map["cycles"];
+        backend *= 100.0;
+        root["perf"]["Backend_stall"] = backend;
+    }
     if (event_map.count("L1-dcache-load-misses") && event_map.count("L1-dcache-loads")) {
         float l1d_miss = (float)event_map["L1-dcache-load-misses"]/event_map["L1-dcache-loads"];
-        l1d_miss *= 100;
+        l1d_miss *= 100.0;
         root["perf"]["L1D_MISS_PERCENT"] = l1d_miss;
     }
     if (event_map.count("l2d_cache_refill") && event_map.count("l2d_cache")) {
         float l2d_miss = (float)event_map["l2d_cache_refill"]/event_map["l2d_cache"];
-        l2d_miss *= 100;
+        l2d_miss *= 100.0;
         root["perf"]["L2D_MISS_PERCENT"] = l2d_miss;
     }
     if (event_map.count("l3d_cache_refill") && event_map.count("l3d_cache")) {
         float l3d_miss = (float)event_map["l3d_cache_refill"]/event_map["l3d_cache"];
-        l3d_miss *= 100;
+        l3d_miss *= 100.0;
         root["perf"]["L3D_MISS_PERCENT"] = l3d_miss;
     }
     if (event_map.count("LLC-load-misses") && event_map.count("LLC-loads")) {
         float llc_miss = (float)event_map["LLC-load-misses"]/event_map["LLC-loads"];
-        llc_miss *= 100;
+        llc_miss *= 100.0;
         root["perf"]["LLC_MISS_PERCENT"] = llc_miss;
     }
     if (event_map.count("iTLB-load-misses") && event_map.count("iTLB-loads")) {
         float itlb_miss = (float)event_map["iTLB-load-misses"]/event_map["iTLB-loads"];
-        itlb_miss *= 100;
+        itlb_miss *= 100.0;
         root["perf"]["ITLB_MISS_PERCENT"] = itlb_miss;
     }
     if (event_map.count("dTLB-load-misses") && event_map.count("dTLB-loads")) {
         float dtlb_miss = (float)event_map["dTLB-load-misses"]/event_map["dTLB-loads"];
-        dtlb_miss *= 100;
+        dtlb_miss *= 100.0;
         root["perf"]["DTLB_MISS_PERCENT"] = dtlb_miss;
     }
     if (event_map.count("branch-misses") && event_map.count("branches")) {
         float br_miss = (float)event_map["branch-misses"]/event_map["branches"];
-        br_miss *= 100;
+        br_miss *= 100.0;
         root["perf"]["BRANCH_MISS_PERCENT"] = br_miss;
     }
 
@@ -194,7 +204,7 @@ int main(int argc, char *argv[]) {
                 output_file = optarg;
             break;
             default:
-                std::cout << "Only support option \"" << opt << "\" failed" << std::endl;
+                std::cout << "Not support option \""<< opt << "\" , Use -i $inputfile and -o $outputfile" << std::endl;
             break;
         }
     }

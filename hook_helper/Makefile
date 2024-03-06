@@ -12,7 +12,7 @@ all: $(LIBHOOK_HELPER)
 
 LIBHELPERSRC = $(wildcard $(CURRENT_DIR)/hooker.S $(CURRENT_DIR)/hook_helper.cpp)
 LIBHELPEROBJS := $(patsubst $(CURRENT_DIR)/%, $(BUILD_OUTPUT_PATH)/%, $(patsubst %.S, %.o, $(patsubst %.cpp, %.o, $(LIBHELPERSRC))))
-LIBS1 = $(LIBS) -lpthread
+LIBS1 = $(LIBS) -lpthread -lalog
 CXXFLAGS += -g -O3
 
 $(BUILD_OUTPUT_PATH)/%.o: $(CURRENT_DIR)/%.cpp

@@ -9,17 +9,20 @@
 #include <asm/unistd.h>
 #include <sched.h>
 #include <unordered_map>
+#include "log.h"
 
 /*
 PERF_GROUP_MODE: three functions spend 1.5ms+, about 500us+ every function
 Not PERF_GROUP_MODE: three functions spend 2.7ms+, about 900us+ every function
 */
 #define PERF_GROUP_MODE
+/*PERF_USERSPACE_ONLY only monitor user space*/
+// #define PERF_USERSPACE_ONLY
 // #define DEBUG
-#define PERF_LOG_ERR(fmt, ...) printf("[PROFILE]-[ERR]" fmt, ##__VA_ARGS__)
-#define PERF_LOG_INFO(fmt, ...) printf("[PROFILE]-[INFO]" fmt, ##__VA_ARGS__)
+#define PERF_LOG_ERR(fmt, ...) ALOGE(fmt, ##__VA_ARGS__)
+#define PERF_LOG_INFO(fmt, ...) ALOGI(fmt, ##__VA_ARGS__)
 #ifdef DEBUG
-  #define PERF_LOG_DBG(fmt, ...) printf("[PROFILE]-[DBG]" fmt, ##__VA_ARGS__)
+  #define PERF_LOG_DBG(fmt, ...) ALOGD(fmt, ##__VA_ARGS__)
 #else
   #define PERF_LOG_DBG(fmt, ...)
 #endif
@@ -59,6 +62,8 @@ struct perf_events def_attrs[] = {
     { "iTLB-loads", .fd = 0, .attr{.type = PERF_TYPE_HW_CACHE, .config = PERF_COUNT_HW_CACHE_ITLB | DEF_HW_CACHE_ACCESS}},
     { "dTLB-load-misses", .fd = 0, .attr{.type = PERF_TYPE_HW_CACHE, .config = PERF_COUNT_HW_CACHE_DTLB | DEF_HW_CACHE_MISS}},
     { "dTLB-loads", .fd = 0, .attr{.type = PERF_TYPE_HW_CACHE, .config = PERF_COUNT_HW_CACHE_DTLB | DEF_HW_CACHE_ACCESS}},
+    { "stalled-cycles-frontend", .fd = 0, .attr{.type = PERF_TYPE_HARDWARE, .config = PERF_COUNT_HW_STALLED_CYCLES_FRONTEND}},
+    { "stalled-cycles-backend", .fd = 0, .attr{.type = PERF_TYPE_HARDWARE, .config = PERF_COUNT_HW_STALLED_CYCLES_BACKEND}},
 #endif
     { "context-switches", .fd = 0, .attr{.type = PERF_TYPE_SOFTWARE, .config = PERF_COUNT_SW_CONTEXT_SWITCHES}},
     { "migrations", .fd = 0, .attr{.type = PERF_TYPE_SOFTWARE, .config = PERF_COUNT_SW_CPU_MIGRATIONS}},

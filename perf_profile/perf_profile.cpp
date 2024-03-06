@@ -1,3 +1,5 @@
+#define LOG_TAG "PERF_PROFILE"
+
 #include "perf_profile.h"
 #include <bits/types/struct_timeval.h>
 #include <cstddef>
@@ -20,6 +22,12 @@ static int enable_perf_profile() {
     memset(&attr, 0, sizeof(struct perf_event_attr));
     attr.size = sizeof(struct perf_event_attr);
     attr.disabled = 1;
+#ifdef PERF_USERSPACE_ONLY
+    attr.exclude_user = 0;
+    attr.exclude_kernel = 1;
+    attr.exclude_hv = 1;
+#endif
+
 #ifdef PERF_GROUP_MODE
     attr.read_format = PERF_FORMAT_GROUP | PERF_FORMAT_ID;
 #else

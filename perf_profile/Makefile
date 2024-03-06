@@ -13,7 +13,7 @@ all: $(LIBPERF_PROFILE) $(PERF_PARSER)
 
 LIBPERFSRC = $(wildcard $(CURRENT_DIR)/perf_profile.cpp)
 LIBPERFOBJS := $(patsubst $(CURRENT_DIR)/%, $(BUILD_OUTPUT_PATH)/%, $(patsubst %.S, %.o, $(patsubst %.cpp, %.o, $(LIBPERFSRC))))
-LIBS1 = $(LIBS) -ljsoncpp
+LIBS1 = $(LIBS) -ljsoncpp -lalog
 CXXFLAGS += -g -O3
 
 $(BUILD_OUTPUT_PATH)/%.o: $(CURRENT_DIR)/%.cpp

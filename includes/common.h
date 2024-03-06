@@ -25,20 +25,21 @@
 #define CODE_INJECT_INFO(fmt, ...) printf("[INJECTOR]-[INFO]" fmt, ##__VA_ARGS__)
 #define CODE_INJECT_WARN(fmt, ...) printf("[INJECTOR]-[WARN]" fmt, ##__VA_ARGS__)
 
-// #define DEGBUG
-#ifdef DEGBUG
-#define CODE_INJECT_DBG(fmt, ...) printf("[DBG]" fmt, ##__VA_ARGS__)
+// #define DEBUG
+#ifdef DEBUG
+    #define CODE_INJECT_DBG(fmt, ...) printf("[DBG]" fmt, ##__VA_ARGS__)
 #else
-#define CODE_INJECT_DBG(fmt, ...)
+    #define CODE_INJECT_DBG(fmt, ...)
 #endif
 
-// #define DEGBUG_HELPER
-#define HOOK_HELPER_ERR(fmt, ...) printf("[HELPER]-[ERR]" fmt, ##__VA_ARGS__)
-#define HOOK_HELPER_INFO(fmt, ...) printf("[HELPER]-[INFO]" fmt, ##__VA_ARGS__)
-#define HOOK_HELPER_WARN(fmt, ...) printf("[HELPER]-[WARN]" fmt, ##__VA_ARGS__)
+#include "log.h"
+// #define DEBUG_HELPER
+#define HOOK_HELPER_ERR(fmt, ...) ALOGE(fmt, ##__VA_ARGS__)
+#define HOOK_HELPER_INFO(fmt, ...) ALOGI(fmt, ##__VA_ARGS__)
+#define HOOK_HELPER_WARN(fmt, ...) ALOGW(fmt, ##__VA_ARGS__)
 
-#ifdef DEGBUG_HELPER
-#define HOOK_HELPER_DBG(fmt, ...) printf("[HELPER]-[DBG]" fmt, ##__VA_ARGS__)
+#ifdef DEBUG_HELPER
+    #define HOOK_HELPER_DBG(fmt, ...) ALOGD("[HELPER]" fmt, ##__VA_ARGS__)
 #else
-#define HOOK_HELPER_DBG(fmt, ...)
+    #define HOOK_HELPER_DBG(fmt, ...)
 #endif
